@@ -119,12 +119,12 @@ def make_arrays(nb_rows, img_size):
 
 def merge_datasets(pickle_files, train_size, valid_size, img_size):
   num_classes = len(pickle_files)
-  valid_dataset, valid_labels = make_arrays(train_size, img_size)
+  valid_dataset, valid_labels = make_arrays(valid_size, img_size)
   train_dataset, train_labels = make_arrays(train_size, img_size)
 
   t_size_per_class = train_size//num_classes
   v_size_per_class = valid_size//num_classes
-
+  
   start_v, start_t = 0, 0
   end_v, end_t = v_size_per_class, t_size_per_class
   end_l = v_size_per_class + t_size_per_class
@@ -156,6 +156,17 @@ def randomize(dataset, labels):
 
   return shuffled_dataset, shuffled_labels
 
+def maybe_dump_pickle(pickle_file, save):
+  if not os.path.exists(pickle_file):
+    try:
+      f = open(pickle_file, 'wb')
+      pickle.dump(save, f, pickle.HIGHEST_PROTOCOL)
+      f.close()
+    except Exception as e:
+      print('Unable to save data to', pickle_file, ':', e)
+      raise
+  else:
+    print("Pickle dump exists!")
 
 if __name__ == "__main__":
   url = 'http://commondatastorage.googleapis.com/books1000/'
@@ -183,36 +194,31 @@ if __name__ == "__main__":
   valid_dataset, valid_labels, train_dataset, train_labels = merge_datasets(train_datasets, train_size, valid_size, image_size)
   _, _, test_dataset, test_labels = merge_datasets(test_datasets, test_size, 0, image_size)
 
+  print('Training set', train_dataset.shape, train_labels.shape)
+  print('Validation set', valid_dataset.shape, valid_labels.shape)
+  print('Test set', test_dataset.shape, test_labels.shape)
+
   train_dataset, train_labels = randomize(train_dataset, train_labels)
   test_dataset, test_labels = randomize(test_dataset, test_labels)
   valid_dataset, valid_labels = randomize(valid_dataset, valid_labels)
 
   pickle_file = 'notMNIST.pickle'
 
-  try:
-    f = open(pickle_file, 'wb')
-    save = {
-      'train_dataset': train_dataset,
-      'train_labels': train_labels,
-      'valid_dataset': valid_dataset,
-      'valid_labels': valid_labels,
-      'test_dataset': test_dataset,
-      'test_labels': test_labels,
-      }
-    pickle.dump(save, f, pickle.HIGHEST_PROTOCOL)
-    f.close()
-  except Exception as e:
-    print('Unable to save data to', pickle_file, ':', e)
-    raise
+  maybe_dump_pickle(pickle_file, {
+        'train_dataset': train_dataset,
+        'train_labels': train_labels,
+        'valid_dataset': valid_dataset,
+        'valid_labels': valid_labels,
+        'test_dataset': test_dataset,
+        'test_labels': test_labels,
+        })
 
   statinfo = os.stat(pickle_file)
   print('Compressed pickle size:', statinfo.st_size)
 
   model = sklearn.linear_model.LogisticRegression()
   train_dataset = train_dataset.reshape(train_dataset.shape[0], train_dataset.shape[1]*train_dataset.shape[2])
-  print(train_dataset.shape)
   test_dataset = test_dataset.reshape(test_size, image_size*image_size)
-  print(test_dataset.shape)
   model.fit(train_dataset[:10000, :], train_labels[:10000])
 
   print('Trained!')
