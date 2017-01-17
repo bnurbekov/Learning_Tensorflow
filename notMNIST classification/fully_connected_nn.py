@@ -122,7 +122,7 @@ def train_log_reg_using_stochastic_gd(save, num_steps, batch_size=128):
 
     print('===> Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
 
-def train_nn_using_sgd(save, num_steps, batch_size=128, hidden_units_num=1024):
+def train_nn_using_sgd(save, num_steps, regularization_constant=0.01, batch_size=128, hidden_units_num=1024, dropout_prob=0.95):
   train_dataset = save['train_dataset']
   train_labels = save['train_labels']
   valid_dataset = save['valid_dataset']
@@ -155,11 +155,14 @@ def train_nn_using_sgd(save, num_steps, batch_size=128, hidden_units_num=1024):
     weights = tf.Variable(tf.truncated_normal([hidden_units_num, num_labels]))
     bias = tf.Variable(tf.zeros([num_labels]))
 
-    hidden_logit = tf.matmul(tf_train_dataset, hidden_weights) + hidden_bias
+    hidden_logit = tf.nn.dropout(tf.matmul(tf_train_dataset, hidden_weights) + hidden_bias, dropout_prob)
     logits = tf.matmul(tf.nn.relu(hidden_logit), weights) + bias
-    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=tf_train_labels, logits=logits))
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=tf_train_labels, logits=logits)) + regularization_constant * (tf.nn.l2_loss(weights) + tf.nn.l2_loss(hidden_weights))
 
-    optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss)
+    global_step = tf.Variable(0)  # count the number of steps taken.
+    learning_rate = tf.train.exponential_decay(0.5, global_step, num_steps, 0.95)
+
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
     train_prediction = tf.nn.softmax(logits)
     test_prediction = tf.nn.softmax(tf.matmul(tf.nn.relu(tf.matmul(tf_test_dataset, hidden_weights) + hidden_bias), weights) + bias)
     valid_prediction = tf.nn.softmax(tf.matmul(tf.nn.relu(tf.matmul(tf_valid_dataset, hidden_weights) + hidden_bias), weights) + bias)
@@ -191,7 +194,7 @@ if __name__ == "__main__":
     save = pickle.load(f)
 
   #train_using_gd(save, 801, 10000)
-  print("Logistic regression with sgd:")
-  train_log_reg_using_stochastic_gd(save, 801, 128)
+  #print("Logistic regression with sgd:")
+  #train_log_reg_using_stochastic_gd(save, 801, 128)
   print("NN with sgd:")
-  train_nn_using_sgd(save, 801, batch_size=256)
+  train_nn_using_sgd(save, 801, regularization_constant=0.005, batch_size=512)
